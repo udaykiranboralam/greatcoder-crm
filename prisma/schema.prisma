@@ -1,0 +1,384 @@
+// Prisma schema - GreatCoder AI Admissions CRM
+// Prisma version: 5.22.0
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ─────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  COUNSELOR
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  INTERESTED
+  DEMO_SCHEDULED
+  FOLLOW_UP
+  CONVERTED
+  NOT_INTERESTED
+  INVALID
+}
+
+enum LeadTemperature {
+  HOT
+  WARM
+  COLD
+}
+
+enum LeadSource {
+  CHATBOT
+  WEBSITE
+  META_ADS
+  WHATSAPP
+  WALK_IN
+  REFERRAL
+  OTHER
+}
+
+enum DemoStatus {
+  SCHEDULED
+  COMPLETED
+  NO_SHOW
+  RESCHEDULED
+  CANCELLED
+}
+
+enum FollowUpPriority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum FollowUpStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum LearningMode {
+  ONLINE
+  OFFLINE
+  HYBRID
+}
+
+enum IntentLevel {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum Sentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
+// ─── Core ──────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String?
+  role         UserRole @default(COUNSELOR)
+  image        String?
+  isActive     Boolean  @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  leadsAssigned         Lead[]         @relation("AssignedCounselor")
+  conversationsHandled  Conversation[] @relation("HandledBy")
+  demoScheduled         Demo[]         @relation("ScheduledBy")
+  followUpsCreated      FollowUp[]     @relation("CreatedBy")
+  followUpsCompleted    FollowUp[]     @relation("CompletedBy")
+  activities            ActivityLog[]  @relation("PerformedBy")
+
+  @@map("users")
+}
+
+// ─── Courses ───────────────────────────────────────────────────────
+
+model Course {
+  id           String        @id @default(cuid())
+  slug         String        @unique
+  name         String
+  shortDesc    String?
+  description  String?
+  duration     String?
+  price        Decimal?      @db.Decimal(10, 2)
+  mode         LearningMode  @default(OFFLINE)
+  level        String?
+  prerequisites String?
+  image        String?
+  icon         String?
+  isActive     Boolean       @default(true)
+  featured     Boolean       @default(false)
+  sortOrder    Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  modules           CourseModule[]
+  faqs              CourseFAQ[]
+  reviews           CourseReview[]
+  leads             Lead[]
+  recommendedLeads  LeadRecommendation[]
+  demos             Demo[]
+
+  @@map("courses")
+}
+
+model CourseModule {
+  id            String  @id @default(cuid())
+  courseId      String
+  title         String
+  description   String?
+  order         Int     @default(0)
+  topics        CourseTopic[]
+  course        Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("course_modules")
+}
+
+model CourseTopic {
+  id        String        @id @default(cuid())
+  moduleId  String
+  title     String
+  duration  String?
+  order     Int           @default(0)
+  module    CourseModule  @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@map("course_topics")
+}
+
+model CourseFAQ {
+  id        String  @id @default(cuid())
+  courseId  String
+  question  String
+  answer    String
+  order     Int     @default(0)
+  course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("course_faqs")
+}
+
+model CourseReview {
+  id        String   @id @default(cuid())
+  courseId  String
+  name      String
+  rating    Int
+  comment   String?
+  isApproved Boolean @default(true)
+  createdAt DateTime @default(now())
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("course_reviews")
+}
+
+// ─── Leads & AI ────────────────────────────────────────────────────
+
+model Lead {
+  id           String          @id @default(cuid())
+  name         String?
+  email        String?
+  phone        String?
+  whatsapp     String?
+  qualification String?
+  experience   String?
+  currentRole  String?
+  currentLocation String?
+  interestedCourseId String?
+  interestedCourse   Course?     @relation(fields: [interestedCourseId], references: [id])
+  careerGoal   String?
+  budget       String?
+  status       LeadStatus       @default(NEW)
+  temperature  LeadTemperature  @default(COLD)
+  leadScore    Int              @default(0)
+  source       LeadSource       @default(CHATBOT)
+  learningMode LearningMode?    
+  isFresher    Boolean?
+  joiningTimeline String?
+  preferredCallbackTime String?
+  sentiment    Sentiment        @default(NEUTRAL)
+  intentReadiness IntentLevel   @default(LOW)
+  notes        String?
+  lastMessageAt DateTime?
+  firstContactAt DateTime?
+  assignedToId String?
+  assignedTo   User?            @relation("AssignedCounselor", fields: [assignedToId], references: [id])
+  metadata     Json?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  conversations Conversation[]
+  demos         Demo[]
+  followUps     FollowUp[]
+  activities    ActivityLog[]
+  aiRecommendations LeadRecommendation[]
+  scoreHistory  LeadScoreHistory[]
+
+  @@index([status])
+  @@index([temperature])
+  @@index([assignedToId])
+  @@map("leads")
+}
+
+model LeadScoreHistory {
+  id        String   @id @default(cuid())
+  leadId    String
+  score     Int
+  temperature LeadTemperature
+  reason    String?
+  createdAt DateTime @default(now())
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@map("lead_score_history")
+}
+
+model LeadRecommendation {
+  id             String   @id @default(cuid())
+  leadId         String
+  courseId       String?
+  course         Course?  @relation(fields: [courseId], references: [id])
+  confidence     Int      @default(0)
+  reasoning      String?
+  alternatives   Json?
+  createdAt      DateTime @default(now())
+  lead           Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@map("lead_recommendations")
+}
+
+// ─── Conversations ─────────────────────────────────────────────────
+
+model Conversation {
+  id         String   @id @default(cuid())
+  leadId     String
+  channel    String   @default("chatbot")
+  status     String   @default("open")
+  messageCount Int    @default(0)
+  sentiment  Sentiment @default(NEUTRAL)
+  language   String?
+  assignedToId String?
+  assignedTo User?    @relation("HandledBy", fields: [assignedToId], references: [id])
+  startedAt  DateTime @default(now())
+  lastMessageAt DateTime @default(now())
+  endedAt    DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  lead      Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  messages  ChatMessage[]
+  notes     ConversationNote[]
+
+  @@index([leadId])
+  @@map("conversations")
+}
+
+model ChatMessage {
+  id             String       @id @default(cuid())
+  conversationId String
+  role           String
+  content        String
+  intentSignals  Json?
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("chat_messages")
+}
+
+model ConversationNote {
+  id             String       @id @default(cuid())
+  conversationId String
+  note           String
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("conversation_notes")
+}
+
+// ─── Demos & Follow-ups ────────────────────────────────────────────
+
+model Demo {
+  id          String          @id @default(cuid())
+  leadId      String
+  lead        Lead            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  courseId    String?
+  course      Course?         @relation(fields: [courseId], references: [id])
+  scheduledAt DateTime
+  mode        LearningMode    @default(OFFLINE)
+  status      DemoStatus      @default(SCHEDULED)
+  notes       String?
+  scheduledById String?
+  scheduledBy User?           @relation("ScheduledBy", fields: [scheduledById], references: [id])
+  reminderSent Boolean         @default(false)
+  convertedAt DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([leadId])
+  @@index([status])
+  @@map("demos")
+}
+
+model FollowUp {
+  id             String         @id @default(cuid())
+  leadId         String
+  lead           Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  scheduledFor   DateTime
+  status         FollowUpStatus @default(PENDING)
+  priority       FollowUpPriority @default(MEDIUM)
+  note           String?
+  createdById    String?
+  createdBy      User?          @relation("CreatedBy", fields: [createdById], references: [id])
+  completedById  String?
+  completedBy    User?          @relation("CompletedBy", fields: [completedById], references: [id])
+  completedAt    DateTime?
+  reminderSent   Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([leadId])
+  @@index([status])
+  @@map("follow_ups")
+}
+
+// ─── Activity & Settings ───────────────────────────────────────────
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  leadId    String?
+  lead      Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  userId    String?
+  user      User?    @relation("PerformedBy", fields: [userId], references: [id])
+  type      String
+  action    String
+  metadata  Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
+  @@index([userId])
+  @@map("activity_logs")
+}
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String?
+  metadata  Json?
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
