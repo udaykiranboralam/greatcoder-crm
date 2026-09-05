@@ -16,6 +16,7 @@ import {
   LogOut,
   ExternalLink,
   GraduationCap,
+  PhoneCall,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ const navItems = [
 
 const adminOnlyNavItems = [
   { href: "/admin/courses", label: "Courses", icon: GraduationCap },
+  { href: "/admin/voice", label: "AI Voice Agent", icon: PhoneCall },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin/team", label: "Team", icon: Users },
   { href: "/admin/settings", label: "Settings", icon: Settings },
@@ -45,6 +47,7 @@ const pageTitles: Record<string, string> = {
   "/admin/demos": "Demos",
   "/admin/follow-ups": "Follow-ups",
   "/admin/courses": "Courses",
+  "/admin/voice": "AI Voice Agent",
   "/admin/analytics": "Analytics",
   "/admin/team": "Team",
   "/admin/settings": "Settings",

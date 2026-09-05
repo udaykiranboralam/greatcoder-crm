@@ -1,9 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { calculateLeadScore } from "@/lib/lead-scoring";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const limitParam = req.nextUrl.searchParams.get("limit");
+    const limit = limitParam ? Number(limitParam) : undefined;
+
     const leads = await prisma.lead.findMany({
       include: {
         conversations: true,
@@ -12,6 +15,7 @@ export async function GET() {
         interestedCourse: true,
       },
       orderBy: { createdAt: "desc" },
+      take: limit && !Number.isNaN(limit) ? limit : undefined,
     });
     return NextResponse.json({ success: true, data: leads });
   } catch (error) {
