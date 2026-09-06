@@ -4,10 +4,34 @@ import { useState, FormEvent } from "react";
 
 export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setSubmitted(true);
+    setError(null);
+
+    const form = e.currentTarget;
+    const data = {
+      name: (form.elements.namedItem("name") as HTMLInputElement).value,
+      phone: (form.elements.namedItem("phone") as HTMLInputElement).value,
+      interest: (form.elements.namedItem("interest") as HTMLSelectElement).value,
+      message: (form.elements.namedItem("message") as HTMLTextAreaElement).value,
+    };
+
+    try {
+      const res = await fetch("/api/enquiry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      if (!res.ok) throw new Error("Submission failed");
+
+      setSubmitted(true);
+      form.reset();
+    } catch {
+      setError("Something went wrong. Please try again or contact us on WhatsApp.");
+    }
   };
 
   return (
@@ -31,17 +55,22 @@ export default function ContactPage() {
         ) : (
           <>
             <form onSubmit={handleSubmit} className="space-y-6">
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+                  {error}
+                </div>
+              )}
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-dark-700 mb-1">Full Name</label>
-                <input type="text" id="name" className="input" placeholder="Your name" required />
+                <input type="text" id="name" name="name" className="input" placeholder="Your name" required />
               </div>
               <div>
                 <label htmlFor="phone" className="block text-sm font-medium text-dark-700 mb-1">Phone Number</label>
-                <input type="tel" id="phone" className="input" placeholder="Your phone number" required />
+                <input type="tel" id="phone" name="phone" className="input" placeholder="Your phone number" required />
               </div>
               <div>
                 <label htmlFor="interest" className="block text-sm font-medium text-dark-700 mb-1">I&apos;m interested in</label>
-                <select id="interest" className="input" required>
+                <select id="interest" name="interest" className="input" required>
                   <option value="">Select an option</option>
                   <option value="mango">Mango Plantation</option>
                   <option value="anjeer">Anjeer (Fig) Plantation</option>
@@ -56,7 +85,7 @@ export default function ContactPage() {
               </div>
               <div>
                 <label htmlFor="message" className="block text-sm font-medium text-dark-700 mb-1">Message</label>
-                <textarea id="message" rows={4} className="input resize-none" placeholder="Tell us about your interest..." />
+                <textarea id="message" name="message" rows={4} className="input resize-none" placeholder="Tell us about your interest..." />
               </div>
               <button type="submit" className="btn-primary w-full">
                 Send Enquiry
